@@ -1,0 +1,48 @@
+#Choose your prefer version, it should better the latest one.
+version: "3" 
+services:
+  app:
+    build:
+      context: . 
+      # Note: I'm not sure (for now), if other web server like nginx require authorization approve like this. But since we are using apache2, it's important to give your host machine permission to access all of your container's resources. If you don't define those config, Docker will automatically generate another user own those resources and prevent your host machine from interact with them. Currently, I'm not sure why the UID 1000 is set for the default host machine user, but it is 1000, so we set this UID for the apache's container's usergroup.
+      args:
+        uid: 1000
+    environment:
+      - APACHE_RUN_USER=#1000
+      - APACHE_RUN_GROUP=#1000
+    ports: 
+      - "80:80" #This port mapping is fine if you don't have any local service or other containers using it, but if you do, change the host's port to your desired port and leave the container's one default as 80.
+      - "443:443"
+    container_name: app #You can change it as your favor, for me, it is fine to have my webserver+php container name app.
+    restart: unless-stopped
+    #For newbie: Don't copy your workdir to the container, mount it to your container's root workdir so you can edit the code from outside the container
+    volumes:
+      - '.:/var/www/html/'
+      - './logs:/var/log/apache2/'
+    networks:
+      - app-network
+  mysql-server:
+    #One again, you can pick your favor version of mysql images
+    image: mysql:8.0.18
+    container_name: mysql-server
+    restart: always
+    #As I mentioned, you can leave the port mapping default as 3306:3306 if you don't have any service using that port, but in my case, I usually have a local mysql instance running so I'd change host's port to 3309. You can choose any port as you like.
+    ports:
+      - "3309:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: #Your desired root's password
+      MYSQL_DATABASE: #Your desired Database's name
+    networks:
+      - app-network
+    #Rememeber when I told you to mount your code to the webserver container's workdir? This has the same purpose but for your database data.
+    volumes:
+      - mysql-server-data:/var/lib/mysql
+      - ./mysql/initdb:/docker-entrypoint-initdb.d
+    #Don't forget this command to have your database service using mysql_native _password so you can use it from outside of the container. As I have experienced, it should be already enabled by default. But sometime it is just not work and I have to enable it myself, so we should better have this line here
+    command: "--default-authentication-plugin=mysql_native_password"
+
+#Leave the network option blank to set it default or change it as your desired
+networks:
+  app-network:
+volumes:
+  mysql-server-data:
